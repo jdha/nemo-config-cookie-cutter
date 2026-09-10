@@ -1,0 +1,58 @@
+name: on-push
+
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+  pull_request:
+    branches:
+    - main
+
+concurrency:
+  group: ${{ '{{ github.workflow }}' }}-${{ '{{ github.ref }}' }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.x
+    - uses: pre-commit/action@v3.0.1
+
+  test-package:
+    runs-on: ubuntu-latest
+    needs: [pre-commit]
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.x
+    - name: Install cruft
+      run: pip3 install cruft
+    - name: Create my-package
+      run: cruft create . --output-dir .. -y
+    - name: Install Conda environment with Micromamba
+      uses: mamba-org/setup-micromamba@v3
+      with:
+        environment-file: ../my-package/ci/environment-ci.yml
+        environment-name: DEVELOP
+        cache-environment: true
+        create-args: >-
+          python=3.12
+    - name: Test my-package
+      run: |
+        cd ../my-package || exit
+        git init || exit
+        git add . || exit
+        pip install -e . || exit
+        make || exit
+        make docs-build || exit

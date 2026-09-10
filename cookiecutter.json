@@ -1,0 +1,11 @@
+{
+    "project_name": "My NEMO Config",
+    "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_').replace('-', '_') }}",
+    "project_short_description": "A NEMO ocean model configuration setup",
+    "author_name": "Author",
+    "nemo_components": "OCE, ICE",
+    "nemo_version": "5.0.2, 4.2.3",
+    "vertical_coord": ["zps", "zco", "sco"],
+    "linear_ssh": ["n", "y"],
+    "copyright_year": "{% now 'utc', '%Y' %}"
+}

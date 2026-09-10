@@ -1,0 +1,3 @@
+[submodule "arch"]
+	path = arch
+	url = git@github.com:jdha/emo-arch.git
