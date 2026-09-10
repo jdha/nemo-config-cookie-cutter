@@ -107,6 +107,272 @@ def generate_cpp_file(ver, parent_ver, components, project_root):
     print(f"--> [CPP/{ver}] Generated cpp_{PROJECT_SLUG}.fcm (Parent: '{parent_ver}'):")
     print(f"    {fcm_content.strip()}")
 
+def generate_file_def_xml(ver, parent_ver, comp, expref_ver_dir):
+    comp_lower = comp.lower()
+    filename = f"file_def_nemo-{comp_lower}.xml"
+    target_path = os.path.join(expref_ver_dir, filename)
+
+    is_v5 = parent_ver.startswith("5") or (len(parent_ver) > 0 and parent_ver[0] == "5")
+
+    if is_v5:
+        if comp_lower == "oce":
+            prefix = "oce_"
+        elif comp_lower == "ice":
+            prefix = "ice_"
+        elif comp_lower == "top":
+            prefix = "trc_"
+        else:
+            prefix = f"{comp_lower}_"
+    else:
+        prefix = ""
+
+    if comp_lower == "oce":
+        file_id = "file101"
+        field_ref = "my_oce_var"
+        desc = "ocean T grid variables"
+    elif comp_lower == "ice":
+        file_id = "file201"
+        field_ref = "my_ice_var"
+        desc = "ice T grid variables"
+    elif comp_lower == "top":
+        file_id = "file301"
+        field_ref = "my_trc_var"
+        desc = "tracer T grid variables"
+    else:
+        file_id = "file101"
+        field_ref = f"my_{comp_lower}_var"
+        desc = f"{comp_lower} variables"
+
+    xml_content = f"""<?xml version="1.0"?>
+
+    <!--
+============================================================================================================
+=                                           output files definition                                        =
+=                                            Define your own files                                         =
+=                                         put the variables you want...                                    =
+============================================================================================================
+    -->
+
+    <file_definition type="multiple_file" name="@expname@_@freq@_@startdate@_@enddate@" sync_freq="10d" min_digits="4">
+
+      <file_group id="{prefix}1ts" output_freq="1ts"  output_level="10" enabled=".TRUE."/> <!-- 1 time step files -->
+
+      <file_group id="{prefix}1h" output_freq="1h"  output_level="10" enabled=".TRUE."  >
+
+        <file id="{file_id}" name_suffix="_grid_T" description="{desc}" enabled=".TRUE." >
+          <field field_ref="{field_ref}"  operation="instant" enabled=".TRUE." />
+        </file>
+
+      </file_group>
+
+      <file_group id="{prefix}2h" output_freq="2h"  output_level="10" enabled=".TRUE."/> <!-- 2h files -->
+      <file_group id="{prefix}3h" output_freq="3h"  output_level="10" enabled=".TRUE."/> <!-- 3h files -->
+      <file_group id="{prefix}4h" output_freq="4h"  output_level="10" enabled=".TRUE."/> <!-- 4h files -->
+      <file_group id="{prefix}6h" output_freq="6h"  output_level="10" enabled=".TRUE."/> <!-- 6h files -->
+
+      <file_group id="{prefix}1d" output_freq="1d"  output_level="10" enabled=".TRUE."/> <!-- 1d files -->
+      <file_group id="{prefix}3d" output_freq="3d"  output_level="10" enabled=".TRUE."/> <!-- 3d files -->
+      <file_group id="{prefix}5d" output_freq="5d"  output_level="10" enabled=".TRUE."/>  <!-- 5d files -->
+
+      <file_group id="{prefix}1m" output_freq="1mo" output_level="10" enabled=".TRUE."/> <!-- real monthly files -->
+      <file_group id="{prefix}2m" output_freq="2mo" output_level="10" enabled=".TRUE."/> <!-- real 2m files -->
+      <file_group id="{prefix}3m" output_freq="3mo" output_level="10" enabled=".TRUE."/> <!-- real 3m files -->
+      <file_group id="{prefix}4m" output_freq="4mo" output_level="10" enabled=".TRUE."/> <!-- real 4m files -->
+      <file_group id="{prefix}6m" output_freq="6mo" output_level="10" enabled=".TRUE."/> <!-- real 6m files -->
+
+      <file_group id="{prefix}1y"  output_freq="1y" output_level="10" enabled=".TRUE."/> <!-- real yearly files -->
+      <file_group id="{prefix}2y"  output_freq="2y" output_level="10" enabled=".TRUE."/> <!-- real 2y files -->
+      <file_group id="{prefix}5y"  output_freq="5y" output_level="10" enabled=".TRUE."/> <!-- real 5y files -->
+      <file_group id="{prefix}10y" output_freq="10y" output_level="10" enabled=".TRUE."/> <!-- real 10y files -->
+
+   </file_definition>
+"""
+    with open(target_path, "w") as f:
+        f.write(xml_content)
+    print(f"--> [EXPREF/{ver}] Generated {filename} (Prefix: '{prefix}', File ID: '{file_id}')")
+
+def create_expref_symlinks(ver, components, expref_ver_dir):
+    symlinks_to_create = [
+        "axis_def_nemo.xml",
+        "domain_def_nemo.xml",
+        "grid_def_nemo.xml",
+    ]
+
+    if "OCE" in components:
+        symlinks_to_create.extend(["field_def_nemo-oce.xml", "namelist_ref"])
+    if "ICE" in components:
+        symlinks_to_create.extend(["field_def_nemo-ice.xml", "namelist_ice_ref"])
+    if "TOP" in components:
+        symlinks_to_create.extend([
+            "field_def_nemo-innerttrc.xml",
+            "namelist_top_ref",
+            "namelist_trc_ref"
+        ])
+
+    for filename in symlinks_to_create:
+        target_path = os.path.join(expref_ver_dir, filename)
+        symlink_src = f"../../SHARED/{ver}/{filename}"
+        if os.path.lexists(target_path):
+            os.remove(target_path)
+        os.symlink(symlink_src, target_path)
+        print(f"--> [EXPREF/{ver}] Created symlink {filename} -> {symlink_src}")
+
+def generate_context_nemo_xml(components, expref_ver_dir):
+    field_defs = []
+    file_defs = []
+
+    if "OCE" in components:
+        field_defs.append('    <field_definition src="./field_def_nemo-oce.xml"/>    <!--  NEMO ocean dynamics     -->')
+        file_defs.append('    <file_definition src="./file_def_nemo-oce.xml"/>     <!--  NEMO ocean dynamics      -->')
+
+    if "ICE" in components:
+        field_defs.append('    <field_definition src="./field_def_nemo-ice.xml"/>    <!--  NEMO sea-ice model      -->')
+        file_defs.append('    <file_definition src="./file_def_nemo-ice.xml"/>     <!--  NEMO sea-ice model       -->')
+
+    if "TOP" in components:
+        field_defs.append('    <field_definition src="./field_def_nemo-innerttrc.xml"/> <!--  NEMO ocean passive tracer      -->')
+        file_defs.append('    <file_definition src="./file_def_nemo-top.xml"/>  <!--  NEMO ocean passive tracer       -->')
+
+    field_def_str = "\n".join(field_defs)
+    file_def_str = "\n".join(file_defs)
+
+    xml_content = f"""<!--
+ ==============================================================================================
+    NEMO context
+==============================================================================================
+-->
+<context id="nemo">
+
+    <variable_definition>
+       <!-- Year/Month/Day of time origin for NetCDF files; defaults to 1800-01-01 -->
+       <variable id="ref_year"  type="int"> 1900 </variable>
+       <variable id="ref_month" type="int"> 01 </variable>
+       <variable id="ref_day"   type="int"> 01 </variable>
+       <variable id="rho0"      type="float" > 1026.0 </variable>
+       <variable id="cpocean"   type="float" > 3991.86795711963 </variable>
+       <variable id="convSpsu"  type="float" > 0.99530670233846  </variable>
+       <variable id="rhoic"     type="float" > 917.0 </variable>
+       <variable id="rhosn"     type="float" > 330.0 </variable>
+       <variable id="missval"   type="float" > 1.e20 </variable>
+    </variable_definition>
+
+<!-- Fields definition -->
+{field_def_str}
+
+<!-- Files definition -->
+{file_def_str}
+
+<!-- Axis definition -->
+    <axis_definition src="./axis_def_nemo.xml"/>
+
+<!-- Domain definition -->
+    <domain_definition src="./domain_def_nemo.xml"/>
+
+<!-- Grids definition -->
+    <grid_definition   src="./grid_def_nemo.xml"/>
+
+</context>
+"""
+    context_nemo_path = os.path.join(expref_ver_dir, "context_nemo.xml")
+    with open(context_nemo_path, "w") as f:
+        f.write(xml_content)
+    print(f"--> [EXPREF/{os.path.basename(expref_ver_dir)}] Generated context_nemo.xml")
+
+    context_path = os.path.join(expref_ver_dir, "context.xml")
+    if os.path.lexists(context_path):
+        os.remove(context_path)
+    os.symlink("context_nemo.xml", context_path)
+    print(f"--> [EXPREF/{os.path.basename(expref_ver_dir)}] Created symlink context.xml -> context_nemo.xml")
+
+def generate_iodef_xmls(expref_ver_dir):
+    iodef2_content = """<?xml version="1.0"?>
+<simulation>
+
+<!-- ============================================================================================ -->
+<!-- XIOS context                                                                                 -->
+<!-- ============================================================================================ -->
+
+  <context id="xios" >
+
+      <variable_definition>
+
+          <variable id="info_level"                type="int">10</variable>
+          <variable id="using_server"              type="bool">false</variable>
+          <variable id="using_oasis"               type="bool">false</variable>
+          <variable id="oasis_codes_id"            type="string" >oceanx</variable>
+
+      </variable_definition>
+  </context>
+
+<!-- ============================================================================================ -->
+<!-- NEMO  CONTEXT add and suppress the components you need                                       -->
+<!-- ============================================================================================ -->
+
+  <context id="nemo" src="./context_nemo.xml"/>       <!--  NEMO       -->
+
+</simulation>
+"""
+    iodef3_content = """<?xml version="1.0"?>
+<simulation>
+
+<!-- ============================================================================================ -->
+<!-- XIOS3 context                                                                                 -->
+<!-- ============================================================================================ -->
+
+  <context id="xios" >
+    <variable_definition>
+      <variable_group id="buffer">
+        <variable id="min_buffer_size" type="int">400000</variable>
+        <variable id="optimal_buffer_size" type="string">performance</variable>
+      </variable_group>
+
+      <variable_group id="parameters" >
+        <variable id="using_server" type="bool">true</variable>
+        <variable id="info_level" type="int">0</variable>
+        <variable id="print_file" type="bool">false</variable>
+        <variable id="using_server2" type="bool">false</variable>
+        <variable id="transport_protocol" type="string" >p2p</variable>
+        <variable id="using_oasis"      type="bool">false</variable>
+      </variable_group>
+    </variable_definition>
+    <pool_definition>
+     <pool name="Opool" nprocs="12">
+      <service name="tgatherer" nprocs="2" type="gatherer"/>
+      <service name="igatherer" nprocs="2" type="gatherer"/>
+      <service name="ugatherer" nprocs="2" type="gatherer"/>
+      <service name="pgatherer" nprocs="2" type="gatherer"/>
+      <service name="twriter" nprocs="1" type="writer"/>
+      <service name="uwriter" nprocs="1" type="writer"/>
+      <service name="iwriter" nprocs="1" type="writer"/>
+      <service name="pwriter" nprocs="1" type="writer"/>
+     </pool>
+    </pool_definition>
+  </context>
+
+<!-- ============================================================================================ -->
+<!-- NEMO  CONTEXT add and suppress the components you need                                       -->
+<!-- ============================================================================================ -->
+
+  <context id="nemo" default_pool_writer="Opool" default_pool_gatherer="Opool" src="./context_nemo.xml"/>       <!--  NEMO       -->
+
+</simulation>
+"""
+    iodef2_path = os.path.join(expref_ver_dir, "iodef2.xml")
+    with open(iodef2_path, "w") as f:
+        f.write(iodef2_content)
+    print(f"--> [EXPREF/{os.path.basename(expref_ver_dir)}] Generated iodef2.xml")
+
+    iodef3_path = os.path.join(expref_ver_dir, "iodef3.xml")
+    with open(iodef3_path, "w") as f:
+        f.write(iodef3_content)
+    print(f"--> [EXPREF/{os.path.basename(expref_ver_dir)}] Generated iodef3.xml")
+
+    iodef_path = os.path.join(expref_ver_dir, "iodef.xml")
+    if os.path.lexists(iodef_path):
+        os.remove(iodef_path)
+    os.symlink("iodef2.xml", iodef_path)
+    print(f"--> [EXPREF/{os.path.basename(expref_ver_dir)}] Created symlink iodef.xml -> iodef2.xml")
+
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ["-h", "--help"]:
         print(__doc__.strip())
@@ -159,6 +425,14 @@ def main():
         if size is not None:
             print(f"    Saved {target} ({size} bytes)")
 
+    # Generate component file_def_nemo-{component}.xml files
+    for comp in sorted(list(components)):
+        generate_file_def_xml(ver, PARENT_VERSION, comp, expref_ver_dir)
+
+    # Generate context_nemo.xml, context.xml, iodef2.xml, iodef3.xml, iodef.xml
+    generate_context_nemo_xml(components, expref_ver_dir)
+    generate_iodef_xmls(expref_ver_dir)
+
     # 2. Populate SHARED/<ver>/ with all files from cfgs/SHARED
     shared_ver_dir = os.path.join(project_root, "SHARED", ver)
     os.makedirs(shared_ver_dir, exist_ok=True)
@@ -182,7 +456,10 @@ def main():
         print(f"--> [SHARED/{ver}] Downloading {file_name}...")
         download_file(raw_file_url, target)
 
-    # 3. Generate CPP/<ver>/cpp_<project_slug>.fcm
+    # 3. Create symlinks in EXPREF/<ver>/ pointing to SHARED/<ver>/
+    create_expref_symlinks(ver, components, expref_ver_dir)
+
+    # 4. Generate CPP/<ver>/cpp_<project_slug>.fcm
     generate_cpp_file(ver, PARENT_VERSION, components, project_root)
 
     print(f"\n--> Successfully added NEMO version '{ver}' to EXPREF/, SHARED/, and CPP/")

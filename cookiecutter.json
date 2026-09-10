@@ -6,6 +6,6 @@
     "nemo_components": "OCE, ICE",
     "nemo_version": "5.0.2, 4.2.3",
     "vertical_coord": ["zps", "zco", "sco"],
-    "linear_ssh": ["n", "y"],
+    "linear_ssh": "n",
     "copyright_year": "{% now 'utc', '%Y' %}"
 }
